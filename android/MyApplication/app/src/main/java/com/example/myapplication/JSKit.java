@@ -1,8 +1,9 @@
 package com.example.myapplication;
 
-import android.content.Context;
+import android.app.Activity;
 import android.util.Log;
 import android.webkit.WebView;
+import android.widget.Toast;
 
 import org.json.JSONObject;
 
@@ -16,15 +17,18 @@ public class JSKit {
 //            'X-Authorization': '0175f1f8b0e5e70fb5e3fc6daec250ad',
 //                    'X-Uid': '60000159',
 
-    private Context mContext;
+    private final Activity mContext;
 
-    public JSKit(Context context) {
+    public JSKit(Activity context) {
         this.mContext = context;
     }
 
     @android.webkit.JavascriptInterface
     public void hideCloseIcon() {
         Log.i(Tag, "hideCloseIcon");
+        mContext.runOnUiThread(() -> {
+            Toast.makeText(mContext, "Close", Toast.LENGTH_SHORT).show();
+        });
     }
 
     @android.webkit.JavascriptInterface
