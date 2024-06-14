@@ -11,8 +11,8 @@ public class JSKit {
 
     static String Tag = "JSKit";
 
-    public static String Token = "0175f1f8b0e5e70fb5e3fc6daec250ad";
-    public static long Uid = 60000159;
+    public static String Token = "";
+    public static long Uid = 100001;
 
 //            'X-Authorization': '0175f1f8b0e5e70fb5e3fc6daec250ad',
 //                    'X-Uid': '60000159',
