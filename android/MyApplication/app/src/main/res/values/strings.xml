@@ -6,4 +6,5 @@
     <string name="aspectRatio">宽高比/0全屏</string>
     <string name="start">启动/物理返回键关闭webview</string>
     <string name="opening">已打开/按物理返回关闭</string>
+    <string name="urlempty">url为空</string>
 </resources>

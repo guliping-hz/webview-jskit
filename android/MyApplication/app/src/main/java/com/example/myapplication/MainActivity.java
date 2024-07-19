@@ -4,6 +4,7 @@ import android.content.Context;
 import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.os.health.ServiceHealthStats;
+import android.text.TextUtils;
 import android.util.DisplayMetrics;
 import android.util.Log;
 import android.view.Gravity;
@@ -48,7 +49,7 @@ public class MainActivity extends AppCompatActivity {
 
         SharedPreferences sp = getSharedPreferences(Tag, Context.MODE_PRIVATE);
         urlE.setText(sp.getString(MainActivity.EUrl, ""));
-        uidE.setText(sp.getString(MainActivity.EUid, ""));
+        uidE.setText(sp.getLong(MainActivity.EUid, 0) + "");
         tokenE.setText(sp.getString(MainActivity.EToken, ""));
         ratioE.setText(sp.getString(MainActivity.ERatio, ""));
 
@@ -58,26 +59,33 @@ public class MainActivity extends AppCompatActivity {
                 return;
             }
 
-            SharedPreferences.Editor editor = sp.edit();
-
             url = urlE.getText().toString();
-            String uid = uidE.getText().toString();
+            if (TextUtils.isEmpty(url)) {
+                Toast.makeText(this, R.string.urlempty, Toast.LENGTH_SHORT).show();
+                return;
+            }
+
             JSKit.Token = tokenE.getText().toString();
+            try {
+                JSKit.Uid = Long.parseLong(uidE.getText().toString());
+            } catch (Exception e) {
+                JSKit.Uid = 0;
+            }
             String ratio = ratioE.getText().toString();
 
+            SharedPreferences.Editor editor = sp.edit();
             editor.putString(MainActivity.EUrl, url);
-            editor.putString(MainActivity.EUid, uid);
+            editor.putLong(MainActivity.EUid, JSKit.Uid);
             editor.putString(MainActivity.EToken, JSKit.Token);
             editor.putString(MainActivity.ERatio, ratio);
             editor.commit();
 
             Log.i(Tag, "url:" + sp.getString(EUrl, ""));
-            Log.i(Tag, "EUid:" + sp.getString(EUid, ""));
+            Log.i(Tag, "EUid:" + sp.getLong(EUid, 0));
             Log.i(Tag, "EToken:" + sp.getString(EToken, ""));
 
             double ratioD = 1.0;
             try {
-                JSKit.Uid = Long.parseLong(uid);
                 ratioD = Double.parseDouble(ratio);
             } catch (Exception e) {
                 e.printStackTrace();
