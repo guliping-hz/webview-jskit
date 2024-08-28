@@ -32,11 +32,20 @@ public class JSKit {
     }
 
     @android.webkit.JavascriptInterface
+    public void gameLoaded() {
+        Log.i(Tag, "gameLoaded");
+        mContext.runOnUiThread(() -> {
+            Toast.makeText(mContext, "Close", Toast.LENGTH_SHORT).show();
+        });
+    }
+
+    @android.webkit.JavascriptInterface
     public String getGameNeedInfo() {
         try {
             JSONObject json = new JSONObject();
             json.put("userId", JSKit.Uid);
             json.put("token", JSKit.Token);
+            Log.i(Tag, "getGameNeedInfo：" + json.toString());
             return json.toString();
         } catch (Exception e) {
             e.printStackTrace();

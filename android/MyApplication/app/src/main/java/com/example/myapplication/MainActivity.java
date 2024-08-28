@@ -136,6 +136,9 @@ public class MainActivity extends AppCompatActivity {
 
         // 创建JSKit实例，并添加到WebView中
         JSKit jsKit = new JSKit(this);
+        //默认原生接口
         webView.addJavascriptInterface(jsKit, "appJS");
+        //兼容haya
+        webView.addJavascriptInterface(jsKit, "Application");
     }
 }
