@@ -25,12 +25,14 @@ public class MainActivity extends AppCompatActivity {
     static final String EUrl = "EUrl";
     static final String EUid = "EUid";
     static final String EToken = "EToken";
+    static final String EChannel = "EChannel";
     static final String ERatio = "ERatio";
 
     WebView webView;
     EditText urlE;
     EditText uidE;
     EditText tokenE;
+    EditText channelE;
     EditText ratioE;
 
     static String url = "";
@@ -45,12 +47,14 @@ public class MainActivity extends AppCompatActivity {
         urlE = this.findViewById(R.id.url);
         uidE = this.findViewById(R.id.uid);
         tokenE = this.findViewById(R.id.token);
+        channelE = this.findViewById(R.id.channel);
         ratioE = this.findViewById(R.id.ratio);
 
         SharedPreferences sp = getSharedPreferences(Tag, Context.MODE_PRIVATE);
         urlE.setText(sp.getString(MainActivity.EUrl, ""));
         uidE.setText(sp.getLong(MainActivity.EUid, 0) + "");
         tokenE.setText(sp.getString(MainActivity.EToken, ""));
+        channelE.setText(sp.getString(MainActivity.EChannel, ""));
         ratioE.setText(sp.getString(MainActivity.ERatio, ""));
 
         this.findViewById(R.id.btn).setOnClickListener(v -> {
@@ -66,6 +70,7 @@ public class MainActivity extends AppCompatActivity {
             }
 
             JSKit.Token = tokenE.getText().toString();
+            JSKit.Channel = channelE.getText().toString();
             try {
                 JSKit.Uid = Long.parseLong(uidE.getText().toString());
             } catch (Exception e) {
@@ -77,6 +82,7 @@ public class MainActivity extends AppCompatActivity {
             editor.putString(MainActivity.EUrl, url);
             editor.putLong(MainActivity.EUid, JSKit.Uid);
             editor.putString(MainActivity.EToken, JSKit.Token);
+            editor.putString(MainActivity.EChannel, JSKit.Channel);
             editor.putString(MainActivity.ERatio, ratio);
             editor.commit();
 

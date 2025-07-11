@@ -3,6 +3,7 @@
     <string name="url">Url</string>
     <string name="uid">Uid</string>
     <string name="token">Token</string>
+    <string name="channel">Channel</string>
     <string name="aspectRatio">宽高比/0全屏</string>
     <string name="start">启动/物理返回键关闭webview</string>
     <string name="opening">已打开/按物理返回关闭</string>
