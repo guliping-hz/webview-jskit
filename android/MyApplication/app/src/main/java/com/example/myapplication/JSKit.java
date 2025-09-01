@@ -14,6 +14,7 @@ public class JSKit {
     public static String Channel = "";
     public static String Token = "";
     public static long Uid = 100001;
+    public static int GameId = 0;
 
 //            'X-Authorization': '0175f1f8b0e5e70fb5e3fc6daec250ad',
 //                    'X-Uid': '60000159',
@@ -50,6 +51,7 @@ public class JSKit {
         try {
             JSONObject json = new JSONObject();
             json.put("userId", JSKit.Uid);
+            json.put("gameId", JSKit.GameId);
             json.put("token", JSKit.Token);
             json.put("channel", JSKit.Channel);
             Log.i(Tag, "getGameNeedInfo：" + json.toString());
