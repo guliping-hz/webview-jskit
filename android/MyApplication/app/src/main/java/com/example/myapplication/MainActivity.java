@@ -19,7 +19,7 @@ import android.widget.Toast;
 import androidx.appcompat.app.AppCompatActivity;
 
 public class MainActivity extends AppCompatActivity {
-
+    //https://dl.google.com/dl/android/maven2/com/android/tools/build/gradle/7.4.2/gradle-7.4.2-sources.jar
     static final String Tag = "MainActivity";
 
     static final String EUrl = "EUrl";
@@ -56,7 +56,7 @@ public class MainActivity extends AppCompatActivity {
         SharedPreferences sp = getSharedPreferences(Tag, Context.MODE_PRIVATE);
         urlE.setText(sp.getString(MainActivity.EUrl, ""));
         uidE.setText(sp.getLong(MainActivity.EUid, 0) + "");
-        gameIdE.setText(sp.getLong(MainActivity.EGameId, 0) + "");
+        gameIdE.setText(sp.getInt(MainActivity.EGameId, 0) + "");
         tokenE.setText(sp.getString(MainActivity.EToken, ""));
         channelE.setText(sp.getString(MainActivity.EChannel, ""));
         ratioE.setText(sp.getString(MainActivity.ERatio, ""));
