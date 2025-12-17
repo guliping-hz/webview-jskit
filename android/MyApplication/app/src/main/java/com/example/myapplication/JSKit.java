@@ -50,7 +50,7 @@ public class JSKit {
     public String getGameNeedInfo() {
         try {
             JSONObject json = new JSONObject();
-            json.put("userId", JSKit.Uid);
+            json.put("userId", "" + JSKit.Uid);
             json.put("gameId", JSKit.GameId);
             json.put("token", JSKit.Token);
             json.put("channel", JSKit.Channel);

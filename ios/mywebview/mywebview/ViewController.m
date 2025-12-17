@@ -57,7 +57,8 @@ WKWebView* _webView = NULL;
 completionHandler:(void (^)(NSString * _Nullable))completionHandler {
     if (prompt) {
         if ([prompt isEqualToString: @"getGameNeedInfoPrompt"]) {
-            completionHandler(@"{\"userId\":1,\"token\":\"xxxtokenyyy\"}");
+            //userId改成字符串,防止Long在js的JSON.parse中丢失精度
+            completionHandler(@"{\"userId\":\"1\",\"token\":\"xxxtokenyyy\"}");
         }
     }
 }
