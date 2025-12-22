@@ -63,8 +63,15 @@ completionHandler:(void (^)(NSString * _Nullable))completionHandler {
     }
 }
 
--(void)walletUpdate{
+-(void)walletUpdateNoCoin{
     [self.webView evaluateJavaScript:@"walletUpdate()" completionHandler:^(id _Nullable, NSError * _Nullable error) {
+            
+    }];
+}
+
+-(void)walletUpdate:(long)coin{
+    NSString *jsString = [NSString stringWithFormat:@"walletUpdate(\"%ld\")", coin];
+    [self.webView evaluateJavaScript:jsString completionHandler:^(id _Nullable, NSError * _Nullable error) {
             
     }];
 }

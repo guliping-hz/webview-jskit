@@ -67,7 +67,16 @@ public class JSKit {
         return this.getGameNeedInfo();
     }
 
-    public static void eval(WebView webView) {
-        webView.evaluateJavascript("walletUpdate()", null);
+    public static void Eval(WebView webView, evalStr) {
+        webView.evaluateJavascript(evalStr, null);
+    }
+
+    public static void WalletUpdateNoCoin(WebView webView) {
+        JSKit.Eval(webView, "walletUpdate()");
+    }
+
+    public static void WalletUpdate(WebView webView, coin Long) {
+        //用字符串传递coin，防止coin丢失精度
+        JSKit.Eval(webView, "walletUpdate(\"" + coin + "\")");
     }
 }
