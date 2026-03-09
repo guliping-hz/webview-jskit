@@ -12,6 +12,7 @@ public class JSKit {
     static String Tag = "JSKit";
 
     public static String Channel = "";
+    public static String AppId = "";
     public static String Token = "";
     public static long Uid = 100001;
     public static int GameId = 0;
@@ -53,6 +54,9 @@ public class JSKit {
             json.put("userId", "" + JSKit.Uid);
             json.put("gameId", JSKit.GameId);
             json.put("token", JSKit.Token);
+            json.put("a", JSKit.AppId);
+            json.put("appId", JSKit.AppId);
+            json.put("c", JSKit.Channel);
             json.put("channel", JSKit.Channel);
             Log.i(Tag, "getGameNeedInfo：" + json.toString());
             return json.toString();
@@ -67,7 +71,7 @@ public class JSKit {
         return this.getGameNeedInfo();
     }
 
-    public static void Eval(WebView webView, evalStr) {
+    public static void Eval(WebView webView, String evalStr) {
         webView.evaluateJavascript(evalStr, null);
     }
 
@@ -75,7 +79,7 @@ public class JSKit {
         JSKit.Eval(webView, "walletUpdate()");
     }
 
-    public static void WalletUpdate(WebView webView, coin Long) {
+    public static void WalletUpdate(WebView webView, Long coin) {
         //用字符串传递coin，防止coin丢失精度
         JSKit.Eval(webView, "walletUpdate(\"" + coin + "\")");
     }

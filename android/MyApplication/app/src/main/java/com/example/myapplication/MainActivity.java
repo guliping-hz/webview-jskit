@@ -26,6 +26,7 @@ public class MainActivity extends AppCompatActivity {
     static final String EUid = "EUid";
     static final String EToken = "EToken";
     static final String EChannel = "EChannel";
+    static final String EAppId = "EAppId";
     static final String EGameId = "EGameId";
     static final String ERatio = "ERatio";
 
@@ -35,6 +36,7 @@ public class MainActivity extends AppCompatActivity {
     EditText gameIdE;
     EditText tokenE;
     EditText channelE;
+    EditText appIdE;
     EditText ratioE;
 
     static String url = "";
@@ -51,6 +53,7 @@ public class MainActivity extends AppCompatActivity {
         gameIdE = this.findViewById(R.id.gameid);
         tokenE = this.findViewById(R.id.token);
         channelE = this.findViewById(R.id.channel);
+        appIdE = this.findViewById(R.id.appId);
         ratioE = this.findViewById(R.id.ratio);
 
         SharedPreferences sp = getSharedPreferences(Tag, Context.MODE_PRIVATE);
@@ -59,6 +62,8 @@ public class MainActivity extends AppCompatActivity {
         gameIdE.setText(sp.getInt(MainActivity.EGameId, 0) + "");
         tokenE.setText(sp.getString(MainActivity.EToken, ""));
         channelE.setText(sp.getString(MainActivity.EChannel, ""));
+        appIdE.setText(sp.getString(MainActivity.EAppId, ""));
+
         ratioE.setText(sp.getString(MainActivity.ERatio, ""));
 
         this.findViewById(R.id.btn).setOnClickListener(v -> {
@@ -75,6 +80,7 @@ public class MainActivity extends AppCompatActivity {
 
             JSKit.Token = tokenE.getText().toString();
             JSKit.Channel = channelE.getText().toString();
+            JSKit.AppId = appIdE.getText().toString();
             try {
                 JSKit.Uid = Long.parseLong(uidE.getText().toString());
                 JSKit.GameId = Integer.parseInt(gameIdE.getText().toString());
@@ -89,6 +95,7 @@ public class MainActivity extends AppCompatActivity {
             editor.putLong(MainActivity.EUid, JSKit.Uid);
             editor.putInt(MainActivity.EGameId, JSKit.GameId);
             editor.putString(MainActivity.EChannel, JSKit.Channel);
+            editor.putString(MainActivity.EAppId, JSKit.AppId);
             editor.putString(MainActivity.EToken, JSKit.Token);
             editor.putString(MainActivity.ERatio, ratio);
             editor.commit();
