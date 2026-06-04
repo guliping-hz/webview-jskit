@@ -17,6 +17,27 @@
                 android:layout_height="wrap_content"
                 android:layout_gravity="center"
                 android:textSize="40sp"
+                android:text="@string/zip" />
+
+            <EditText
+                android:id="@+id/zip"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:layout_gravity="bottom"
+                android:autofillHints=""
+                android:inputType="text" />
+
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:textSize="40sp"
                 android:text="@string/url" />
 
             <EditText
