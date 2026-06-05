@@ -38,6 +38,8 @@ public class MainActivity extends AppCompatActivity {
     static final String Tag = "MainActivity";
 
     static final String EZip = "EZip";
+    // 常量
+    static final String SAVED_VERSION_KEY = "SavedVersion";
     static final String EUrl = "EUrl";
     static final String EUid = "EUid";
     static final String EToken = "EToken";
@@ -152,14 +154,34 @@ public class MainActivity extends AppCompatActivity {
             updateWebView(ratioD);
             webView.setVisibility(View.VISIBLE);
 
-            if (zip.endsWith(".zip")) {
-                webView.loadDataWithBaseURL(null, "<html><body>正在下载资源包... 0%</body></html>", "text/html", "UTF-8", null);
-                downloadManager = (DownloadManager) getSystemService(DOWNLOAD_SERVICE);
-                startDownload(zip);
-                startProgressTracking();
+            if (!TextUtils.isEmpty(zip)) {
+                int pos = zip.indexOf("?");
+                String zipOnly = zip.substring(0, pos);
+
+                if (zipOnly.endsWith(".zip")) {
+                    String currentVersion = extractVersion(zip);
+                    String savedVersion = sp.getString(SAVED_VERSION_KEY, "");
+                    File gameAssetsDir = new File(getExternalFilesDir(null), "game_assets");
+                    File indexFile = new File(gameAssetsDir, "web-mobile/index.html");
+                    boolean needDownload = !TextUtils.isEmpty(zip) && (!currentVersion.equals(savedVersion) || !indexFile.exists());
+                    if (needDownload) {
+                        // 显示下载界面，开始下载
+                        webView.loadDataWithBaseURL(null, "<html><body>正在下载资源包...</body></html>", "text/html", "UTF-8", null);
+                        downloadManager = (DownloadManager) getSystemService(DOWNLOAD_SERVICE);
+                        startDownload(zip);
+                        startProgressTracking();
+                    } else {
+                        // 版本匹配且文件存在，直接加载本地
+                        Toast.makeText(this, "使用已下载的资源包", Toast.LENGTH_SHORT).show();
+                        loadLocalHtml(gameAssetsDir);
+                    }
+                } else {
+                    webView.loadUrl(url);
+                }
             } else {
                 webView.loadUrl(url);
             }
+
         });
 
         initWebView();
@@ -184,6 +206,11 @@ public class MainActivity extends AppCompatActivity {
             outputDir.mkdirs();
             zipFile.extractAll(outputDir.getAbsolutePath());
             runOnUiThread(() -> {
+                // 解压成功后
+                String currentVersion = extractVersion(zip);
+                SharedPreferences sp = getSharedPreferences(Tag, Context.MODE_PRIVATE);
+                sp.edit().putString(SAVED_VERSION_KEY, currentVersion).apply();
+
                 Toast.makeText(MainActivity.this, "解压完成", Toast.LENGTH_LONG).show();
                 loadLocalHtml(outputDir);
             });
@@ -277,6 +304,19 @@ public class MainActivity extends AppCompatActivity {
         }
         FrameLayout.LayoutParams layoutParams = new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, halfScreenHeight, Gravity.BOTTOM);
         webView.setLayoutParams(layoutParams);
+    }
+
+    // 提取版本号的方法
+    private String extractVersion(String zipUrl) {
+        if (TextUtils.isEmpty(zipUrl)) return "";
+        try {
+            Uri uri = Uri.parse(zipUrl);
+            String version = uri.getQueryParameter("v");
+            if (version != null && !version.isEmpty()) return version;
+        } catch (Exception ignored) {
+        }
+        // 可以扩展其他规则
+        return zipUrl; // 回退
     }
 
     private void loadLocalHtml(File webRootDir) {
