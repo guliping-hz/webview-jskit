@@ -1,15 +1,19 @@
 package com.example.myapplication;
 
+import android.annotation.SuppressLint;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.database.Cursor;
+import android.os.Build;
 import android.os.Bundle;
 import android.text.TextUtils;
 import android.util.Log;
 import android.view.Gravity;
 import android.view.View;
+import android.webkit.ConsoleMessage;
+import android.webkit.WebChromeClient;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
@@ -26,6 +30,9 @@ import net.lingala.zip4j.ZipFile;
 
 import java.io.File;
 import java.io.IOException;
+
+//mumu模拟器调试
+//.\adb.exe connect 127.0.0.1:16384
 
 public class MainActivity extends AppCompatActivity {
     static final String Tag = "MainActivity";
@@ -186,28 +193,6 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    private void loadLocalHtml(File webRootDir) {
-        File indexFile = new File(webRootDir, "web-mobile/index.html");
-        if (!indexFile.exists()) {
-            Toast.makeText(this, "未找到 index.html", Toast.LENGTH_SHORT).show();
-            return;
-        }
-
-        try {
-            String htmlContent = readFileAsString(indexFile);
-            String baseFilePath = "file://" + webRootDir.getAbsolutePath() + "/web-mobile/index.html";
-            String query = "";
-            if (url != null && url.contains("?")) {
-                query = url.substring(url.indexOf("?"));
-            }
-            String baseUrlWithQuery = baseFilePath + query;
-            webView.loadDataWithBaseURL(baseUrlWithQuery, htmlContent, "text/html", "UTF-8", null);
-        } catch (IOException e) {
-            e.printStackTrace();
-            Toast.makeText(this, "读取 HTML 文件失败", Toast.LENGTH_SHORT).show();
-        }
-    }
-
     // 进度追踪相关
     private void startProgressTracking() {
         if (progressHandler == null) {
@@ -230,10 +215,10 @@ public class MainActivity extends AppCompatActivity {
         query.setFilterById(downloadId);
         try (Cursor cursor = downloadManager.query(query)) {
             if (cursor != null && cursor.moveToFirst()) {
-                int status = cursor.getInt(cursor.getColumnIndex(DownloadManager.COLUMN_STATUS));
+                @SuppressLint("Range") int status = cursor.getInt(cursor.getColumnIndex(DownloadManager.COLUMN_STATUS));
                 if (status == DownloadManager.STATUS_RUNNING) {
-                    long bytesDownloaded = cursor.getLong(cursor.getColumnIndex(DownloadManager.COLUMN_BYTES_DOWNLOADED_SO_FAR));
-                    long totalBytes = cursor.getLong(cursor.getColumnIndex(DownloadManager.COLUMN_TOTAL_SIZE_BYTES));
+                    @SuppressLint("Range") long bytesDownloaded = cursor.getLong(cursor.getColumnIndex(DownloadManager.COLUMN_BYTES_DOWNLOADED_SO_FAR));
+                    @SuppressLint("Range") long totalBytes = cursor.getLong(cursor.getColumnIndex(DownloadManager.COLUMN_TOTAL_SIZE_BYTES));
                     if (totalBytes > 0) {
                         int percent = (int) (bytesDownloaded * 100 / totalBytes);
                         String progressHtml = "<html><body>正在下载资源包... " + percent + "%</body></html>";
@@ -294,10 +279,47 @@ public class MainActivity extends AppCompatActivity {
         webView.setLayoutParams(layoutParams);
     }
 
+    private void loadLocalHtml(File webRootDir) {
+        File indexFile = new File(webRootDir, "web-mobile/index.html");
+        if (!indexFile.exists()) {
+            Toast.makeText(this, "未找到 web-mobile/index.html", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        // 使用 Uri.fromFile 保证路径正确编码
+        Uri fileUri = Uri.fromFile(indexFile);
+        String query = "";
+        if (url != null && url.contains("?")) {
+            query = url.substring(url.indexOf("?"));
+        }
+        String finalUrl = fileUri.toString() + query;
+
+        webView.loadUrl(finalUrl);
+    }
+
     private void initWebView() {
         WebSettings webSettings = webView.getSettings();
         webSettings.setJavaScriptEnabled(true);
+        webSettings.setAllowFileAccess(true);
+
+        if (Build.VERSION.SDK_INT >= 16) {
+            webSettings.setAllowFileAccessFromFileURLs(true);
+            webSettings.setAllowUniversalAccessFromFileURLs(true);
+        }
+
+        // 低版本建议同时设置缓存模式，避免因缓存导致脚本不更新
+        webSettings.setCacheMode(WebSettings.LOAD_DEFAULT);
+
         webView.setWebViewClient(new WebViewClient());
+        // 可选的 WebChromeClient 用于查看 console 日志
+        webView.setWebChromeClient(new WebChromeClient() {
+            @Override
+            public boolean onConsoleMessage(ConsoleMessage consoleMessage) {
+                Log.d("WebView", consoleMessage.message());
+                return true;
+            }
+        });
+
         JSKit jsKit = new JSKit(this);
         webView.addJavascriptInterface(jsKit, "appJS");
         webView.addJavascriptInterface(jsKit, "Application");
