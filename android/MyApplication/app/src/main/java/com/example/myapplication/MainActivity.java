@@ -1,18 +1,21 @@
 package com.example.myapplication;
 
 import android.annotation.SuppressLint;
+import android.app.DownloadManager;
+import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.database.Cursor;
+import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
 import android.text.TextUtils;
 import android.util.Log;
 import android.view.Gravity;
 import android.view.View;
-import android.webkit.ConsoleMessage;
 import android.webkit.WebChromeClient;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
@@ -20,26 +23,23 @@ import android.webkit.WebViewClient;
 import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.Toast;
-import android.app.DownloadManager;
-import android.content.BroadcastReceiver;
-import android.net.Uri;
 
+import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 
 import net.lingala.zip4j.ZipFile;
 
 import java.io.File;
 import java.io.IOException;
-
-//mumu模拟器调试
-//.\adb.exe connect 127.0.0.1:16384
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class MainActivity extends AppCompatActivity {
+
     static final String Tag = "MainActivity";
 
+    // SharedPreferences 键名（只保存用户输入的参数，不保存版本）
     static final String EZip = "EZip";
-    // 常量
-    static final String SAVED_VERSION_KEY = "SavedVersion";
     static final String EUrl = "EUrl";
     static final String EUid = "EUid";
     static final String EToken = "EToken";
@@ -57,8 +57,11 @@ public class MainActivity extends AppCompatActivity {
     private DownloadManager downloadManager;
     private long downloadId;
     private BroadcastReceiver downloadReceiver;
-    private android.os.Handler progressHandler;
+    private Handler progressHandler;
     private Runnable progressRunnable;
+
+    // 当前期望的本地 zip 文件名（不含路径）
+    private String expectedZipFileName;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -91,15 +94,20 @@ public class MainActivity extends AppCompatActivity {
             public void onReceive(Context context, Intent intent) {
                 long id = intent.getLongExtra(DownloadManager.EXTRA_DOWNLOAD_ID, -1);
                 if (id == downloadId) {
-                    Toast.makeText(MainActivity.this, "下载完成，开始解压", Toast.LENGTH_SHORT).show();
-                    new Thread(() -> {
-                        File downloadedFile = new File(getExternalFilesDir(null), "temp_game_package.zip");
-                        if (downloadedFile.exists()) {
-                            unzipFile(downloadedFile.getAbsolutePath());
+                    // 下载完成，将 .temp 文件重命名为正式文件名
+                    File tempFile = new File(getExternalFilesDir(null), expectedZipFileName + ".temp");
+                    File targetFile = new File(getExternalFilesDir(null), expectedZipFileName);
+                    if (tempFile.exists()) {
+                        boolean renamed = tempFile.renameTo(targetFile);
+                        if (renamed) {
+                            Toast.makeText(MainActivity.this, "下载完成，开始解压", Toast.LENGTH_SHORT).show();
+                            new Thread(() -> unzipFile(targetFile.getAbsolutePath())).start();
                         } else {
-                            runOnUiThread(() -> Toast.makeText(MainActivity.this, "下载文件不存在", Toast.LENGTH_SHORT).show());
+                            runOnUiThread(() -> Toast.makeText(MainActivity.this, "文件重命名失败", Toast.LENGTH_SHORT).show());
                         }
-                    }).start();
+                    } else {
+                        runOnUiThread(() -> Toast.makeText(MainActivity.this, "下载文件不存在", Toast.LENGTH_SHORT).show());
+                    }
                 }
             }
         };
@@ -118,6 +126,7 @@ public class MainActivity extends AppCompatActivity {
                 return;
             }
 
+            // 保存 JSKit 参数
             JSKit.Token = tokenE.getText().toString();
             JSKit.Channel = channelE.getText().toString();
             JSKit.AppId = appIdE.getText().toString();
@@ -141,10 +150,6 @@ public class MainActivity extends AppCompatActivity {
             editor.putString(ERatio, ratio);
             editor.apply();
 
-            Log.i(Tag, "url:" + sp.getString(EUrl, ""));
-            Log.i(Tag, "EUid:" + sp.getLong(EUid, 0));
-            Log.i(Tag, "EToken:" + sp.getString(EToken, ""));
-
             double ratioD = 1.0;
             try {
                 ratioD = Double.parseDouble(ratio);
@@ -152,46 +157,83 @@ public class MainActivity extends AppCompatActivity {
                 e.printStackTrace();
             }
             updateWebView(ratioD);
-            webView.setVisibility(View.VISIBLE);
 
+            // 核心逻辑：通过本地文件名比对版本，决定是否需要下载
             if (!TextUtils.isEmpty(zip)) {
-                int pos = zip.indexOf("?");
-                String zipOnly = zip.substring(0, pos);
+                // 从 zip URL 中提取期望的本地文件名（去除查询参数，只取路径最后一段）
+                expectedZipFileName = extractFileNameFromUrl(zip);
+                if (TextUtils.isEmpty(expectedZipFileName)) {
+                    Toast.makeText(this, "无法解析压缩包文件名", Toast.LENGTH_SHORT).show();
+                    return;
+                }
 
-                if (zipOnly.endsWith(".zip")) {
-                    String currentVersion = extractVersion(zip);
-                    String savedVersion = sp.getString(SAVED_VERSION_KEY, "");
-                    File gameAssetsDir = new File(getExternalFilesDir(null), "game_assets");
-                    File indexFile = new File(gameAssetsDir, "web-mobile/index.html");
-                    boolean needDownload = !TextUtils.isEmpty(zip) && (!currentVersion.equals(savedVersion) || !indexFile.exists());
-                    if (needDownload) {
-                        // 显示下载界面，开始下载
-                        webView.loadDataWithBaseURL(null, "<html><body>正在下载资源包...</body></html>", "text/html", "UTF-8", null);
-                        downloadManager = (DownloadManager) getSystemService(DOWNLOAD_SERVICE);
-                        startDownload(zip);
-                        startProgressTracking();
-                    } else {
-                        // 版本匹配且文件存在，直接加载本地
-                        Toast.makeText(this, "使用已下载的资源包", Toast.LENGTH_SHORT).show();
+                File localZipFile = new File(getExternalFilesDir(null), expectedZipFileName);
+                File gameAssetsDir = new File(getExternalFilesDir(null), "game_assets");
+                File indexFile = new File(gameAssetsDir, "web-mobile/index.html");
+
+                if (localZipFile.exists() && localZipFile.length() > 0) {
+                    // 本地已有同名 zip 文件，直接解压（如果解压目录不完整则解压，否则可跳过解压直接加载）
+                    if (indexFile.exists()) {
+                        // 已有完整解压内容，直接加载
+                        Toast.makeText(this, "使用已下载的资源包: " + expectedZipFileName, Toast.LENGTH_SHORT).show();
                         loadLocalHtml(gameAssetsDir);
+                        webView.setVisibility(View.VISIBLE);
+                    } else {
+                        // 解压目录缺失，需要解压
+                        Toast.makeText(this, "解压目录缺失，重新解压", Toast.LENGTH_SHORT).show();
+                        webView.loadDataWithBaseURL(null, "<html><body>正在解压资源包...</body></html>", "text/html", "UTF-8", null);
+                        webView.setVisibility(View.VISIBLE);
+                        new Thread(() -> unzipFile(localZipFile.getAbsolutePath())).start();
                     }
                 } else {
-                    webView.loadUrl(url);
+                    // 本地没有同名 zip 文件，需要下载
+                    webView.loadDataWithBaseURL(null, "<html><body>正在下载资源包...</body></html>", "text/html", "UTF-8", null);
+                    webView.setVisibility(View.VISIBLE);
+                    downloadManager = (DownloadManager) getSystemService(DOWNLOAD_SERVICE);
+                    startDownloadWithTemp(zip);
+                    startProgressTracking();
                 }
             } else {
+                // 没有 zip 地址，直接加载网络 URL
                 webView.loadUrl(url);
+                webView.setVisibility(View.VISIBLE);
             }
-
         });
 
         initWebView();
     }
 
-    private void startDownload(String url) {
+    /**
+     * 从 URL 中提取文件名（例如 http://example.com/olympus-1.zip?token=xxx -> olympus-1.zip）
+     */
+    private String extractFileNameFromUrl(String url) {
+        if (TextUtils.isEmpty(url)) return null;
+        try {
+            Uri uri = Uri.parse(url);
+            String path = uri.getPath();
+            if (path == null) return null;
+            String fileName = path.substring(path.lastIndexOf('/') + 1);
+            // 去除可能的查询参数（路径中不应包含 ?，但安全起见）
+            int queryIndex = fileName.indexOf('?');
+            if (queryIndex != -1) {
+                fileName = fileName.substring(0, queryIndex);
+            }
+            return fileName;
+        } catch (Exception e) {
+            e.printStackTrace();
+            return null;
+        }
+    }
+
+    /**
+     * 使用临时文件名下载，下载完成后在广播接收器中重命名
+     */
+    private void startDownloadWithTemp(String url) {
         DownloadManager.Request request = new DownloadManager.Request(Uri.parse(url));
         request.setTitle("正在下载游戏资源包");
         request.setDescription("下载完成后将自动解压");
-        request.setDestinationInExternalFilesDir(this, null, "temp_game_package.zip");
+        // 下载到临时文件
+        request.setDestinationInExternalFilesDir(this, null, expectedZipFileName + ".temp");
         request.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
         downloadId = downloadManager.enqueue(request);
     }
@@ -206,11 +248,6 @@ public class MainActivity extends AppCompatActivity {
             outputDir.mkdirs();
             zipFile.extractAll(outputDir.getAbsolutePath());
             runOnUiThread(() -> {
-                // 解压成功后
-                String currentVersion = extractVersion(zip);
-                SharedPreferences sp = getSharedPreferences(Tag, Context.MODE_PRIVATE);
-                sp.edit().putString(SAVED_VERSION_KEY, currentVersion).apply();
-
                 Toast.makeText(MainActivity.this, "解压完成", Toast.LENGTH_LONG).show();
                 loadLocalHtml(outputDir);
             });
@@ -220,10 +257,26 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    // 进度追踪相关
+    private void loadLocalHtml(File webRootDir) {
+        File indexFile = new File(webRootDir, "web-mobile/index.html");
+        if (!indexFile.exists()) {
+            Toast.makeText(this, "未找到 web-mobile/index.html", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        Uri fileUri = Uri.fromFile(indexFile);
+        String query = "";
+        if (url != null && url.contains("?")) {
+            query = url.substring(url.indexOf("?"));
+        }
+        String finalUrl = fileUri.toString() + query;
+        webView.loadUrl(finalUrl);
+    }
+
+    // 下载进度追踪（与之前相同）
     private void startProgressTracking() {
         if (progressHandler == null) {
-            progressHandler = new android.os.Handler(android.os.Looper.getMainLooper());
+            progressHandler = new Handler();
         }
         progressRunnable = new Runnable() {
             @Override
@@ -255,7 +308,7 @@ public class MainActivity extends AppCompatActivity {
                     stopProgressTracking();
                 } else if (status == DownloadManager.STATUS_FAILED) {
                     stopProgressTracking();
-                    Toast.makeText(MainActivity.this, "下载失败", Toast.LENGTH_SHORT).show();
+                    runOnUiThread(() -> Toast.makeText(MainActivity.this, "下载失败", Toast.LENGTH_SHORT).show());
                 }
             }
         } catch (Exception e) {
@@ -281,14 +334,6 @@ public class MainActivity extends AppCompatActivity {
         return dir.delete();
     }
 
-    private String readFileAsString(File file) throws IOException {
-        byte[] bytes = new byte[(int) file.length()];
-        java.io.FileInputStream fis = new java.io.FileInputStream(file);
-        fis.read(bytes);
-        fis.close();
-        return new String(bytes, "UTF-8");
-    }
-
     @Override
     public void onBackPressed() {
         Log.i(Tag, "back");
@@ -302,64 +347,21 @@ public class MainActivity extends AppCompatActivity {
             double floor = Math.floor(screenWidth / ratio);
             halfScreenHeight = (int) floor;
         }
-        FrameLayout.LayoutParams layoutParams = new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, halfScreenHeight, Gravity.BOTTOM);
+        FrameLayout.LayoutParams layoutParams = new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT, halfScreenHeight, Gravity.BOTTOM);
         webView.setLayoutParams(layoutParams);
-    }
-
-    // 提取版本号的方法
-    private String extractVersion(String zipUrl) {
-        if (TextUtils.isEmpty(zipUrl)) return "";
-        try {
-            Uri uri = Uri.parse(zipUrl);
-            String version = uri.getQueryParameter("v");
-            if (version != null && !version.isEmpty()) return version;
-        } catch (Exception ignored) {
-        }
-        // 可以扩展其他规则
-        return zipUrl; // 回退
-    }
-
-    private void loadLocalHtml(File webRootDir) {
-        File indexFile = new File(webRootDir, "web-mobile/index.html");
-        if (!indexFile.exists()) {
-            Toast.makeText(this, "未找到 web-mobile/index.html", Toast.LENGTH_SHORT).show();
-            return;
-        }
-
-        // 使用 Uri.fromFile 保证路径正确编码
-        Uri fileUri = Uri.fromFile(indexFile);
-        String query = "";
-        if (url != null && url.contains("?")) {
-            query = url.substring(url.indexOf("?"));
-        }
-        String finalUrl = fileUri.toString() + query;
-
-        webView.loadUrl(finalUrl);
     }
 
     private void initWebView() {
         WebSettings webSettings = webView.getSettings();
         webSettings.setJavaScriptEnabled(true);
         webSettings.setAllowFileAccess(true);
-
         if (Build.VERSION.SDK_INT >= 16) {
             webSettings.setAllowFileAccessFromFileURLs(true);
             webSettings.setAllowUniversalAccessFromFileURLs(true);
         }
-
-        // 低版本建议同时设置缓存模式，避免因缓存导致脚本不更新
-        webSettings.setCacheMode(WebSettings.LOAD_DEFAULT);
-
         webView.setWebViewClient(new WebViewClient());
-        // 可选的 WebChromeClient 用于查看 console 日志
-        webView.setWebChromeClient(new WebChromeClient() {
-            @Override
-            public boolean onConsoleMessage(ConsoleMessage consoleMessage) {
-                Log.d("WebView", consoleMessage.message());
-                return true;
-            }
-        });
-
+        webView.setWebChromeClient(new WebChromeClient());
         JSKit jsKit = new JSKit(this);
         webView.addJavascriptInterface(jsKit, "appJS");
         webView.addJavascriptInterface(jsKit, "Application");
@@ -368,7 +370,9 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        if (downloadReceiver != null) unregisterReceiver(downloadReceiver);
+        if (downloadReceiver != null) {
+            unregisterReceiver(downloadReceiver);
+        }
         stopProgressTracking();
     }
 }
