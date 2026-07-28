@@ -214,12 +214,16 @@ public class MainActivity extends AppCompatActivity {
             topup.setVisibility(View.GONE);
         });
         findViewById(R.id.btn_add).setOnClickListener(view -> {
-            long gold = Long.parseLong(goldE.getText().toString());
+            String s = goldE.getText().toString();
+            if (TextUtils.isEmpty(s)) return;
+            long gold = Long.parseLong(s);
             if (gold < 0) gold = -gold;
             sendPrespinRequest(gold);
         });
         findViewById(R.id.btn_minus).setOnClickListener(view -> {
-            long gold = Long.parseLong(goldE.getText().toString());
+            String s = goldE.getText().toString();
+            if (TextUtils.isEmpty(s)) return;
+            long gold = Long.parseLong(s);
             if (gold > 0) gold = -gold;
             sendPrespinRequest(gold);
         });
