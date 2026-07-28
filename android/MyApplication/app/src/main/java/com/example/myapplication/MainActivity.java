@@ -27,12 +27,19 @@ import android.widget.Toast;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 
+import com.google.gson.Gson;
+
 import net.lingala.zip4j.ZipFile;
 
 import java.io.File;
 import java.io.IOException;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+
+import okhttp3.FormBody;
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.Response;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -49,7 +56,8 @@ public class MainActivity extends AppCompatActivity {
     static final String ERatio = "ERatio";
 
     WebView webView;
-    EditText zipE, urlE, uidE, gameIdE, tokenE, channelE, appIdE, ratioE;
+    EditText zipE, urlE, uidE, gameIdE, tokenE, channelE, appIdE, ratioE, goldE;
+    View topup;
 
     static String url = "";
     static String zip = "";
@@ -77,6 +85,9 @@ public class MainActivity extends AppCompatActivity {
         channelE = findViewById(R.id.channel);
         appIdE = findViewById(R.id.appId);
         ratioE = findViewById(R.id.ratio);
+
+        topup = findViewById(R.id.ll_topup);
+        goldE = findViewById(R.id.gold);
 
         SharedPreferences sp = getSharedPreferences(Tag, Context.MODE_PRIVATE);
         zipE.setText(sp.getString(EZip, ""));
@@ -198,6 +209,19 @@ public class MainActivity extends AppCompatActivity {
                 webView.loadUrl(url);
                 webView.setVisibility(View.VISIBLE);
             }
+        });
+        findViewById(R.id.btn_topup_close).setOnClickListener(view -> {
+            topup.setVisibility(View.GONE);
+        });
+        findViewById(R.id.btn_add).setOnClickListener(view -> {
+            long gold = Long.parseLong(goldE.getText().toString());
+            if (gold < 0) gold = -gold;
+            sendPrespinRequest(gold);
+        });
+        findViewById(R.id.btn_minus).setOnClickListener(view -> {
+            long gold = Long.parseLong(goldE.getText().toString());
+            if (gold > 0) gold = -gold;
+            sendPrespinRequest(gold);
         });
 
         initWebView();
@@ -347,8 +371,7 @@ public class MainActivity extends AppCompatActivity {
             double floor = Math.floor(screenWidth / ratio);
             halfScreenHeight = (int) floor;
         }
-        FrameLayout.LayoutParams layoutParams = new FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.MATCH_PARENT, halfScreenHeight, Gravity.BOTTOM);
+        FrameLayout.LayoutParams layoutParams = new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, halfScreenHeight, Gravity.BOTTOM);
         webView.setLayoutParams(layoutParams);
     }
 
@@ -374,5 +397,51 @@ public class MainActivity extends AppCompatActivity {
             unregisterReceiver(downloadReceiver);
         }
         stopProgressTracking();
+    }
+
+    public void sendPrespinRequest(long gold) {
+        OkHttpClient client = new OkHttpClient();
+
+        // 构建 application/x-www-form-urlencoded 表单数据
+        FormBody formBody = new FormBody.Builder().add("uid", String.valueOf(JSKit.Uid)).add("token", "")      // 空值
+                .add("gold", String.valueOf(gold)).build();
+
+        Request request = new Request.Builder().url("https://test2.fanyula.com/buddysrv/gold").post(formBody).build();
+
+        new Thread(() -> {
+            try (Response response = client.newCall(request).execute()) {
+                if (response.isSuccessful() && response.body() != null) {
+                    String jsonResponse = response.body().string();
+
+                    // 解析 JSON
+                    Gson gson = new Gson();
+                    BaseResponse result = gson.fromJson(jsonResponse, BaseResponse.class);
+
+                    // 在主线程处理结果
+                    runOnUiThread(() -> handleResponse(result, gold));
+                } else {
+                    runOnUiThread(() -> {
+                        // 网络请求失败
+                        Toast.makeText(this, "网络请求失败", Toast.LENGTH_SHORT).show();
+                    });
+                }
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }).start();
+    }
+
+    // 处理业务响应
+    private void handleResponse(BaseResponse response, long gold) {
+        if (response.getCode() == 0) {
+            // code=0 表示成功
+            Toast.makeText(this, "✅ " + response.getMsg(), Toast.LENGTH_SHORT).show();
+            // 更新 UI
+            //充值回调，送礼不回调
+            if (gold > 0) JSKit.WalletUpdateNoCoin(this.webView);
+        } else {
+            // 业务失败
+            Toast.makeText(this, "❌ " + response.getMsg(), Toast.LENGTH_SHORT).show();
+        }
     }
 }

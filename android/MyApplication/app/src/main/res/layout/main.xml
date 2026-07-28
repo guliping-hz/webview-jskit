@@ -16,8 +16,8 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_gravity="center"
-                android:textSize="40sp"
-                android:text="@string/zip" />
+                android:text="@string/zip"
+                android:textSize="40sp" />
 
             <EditText
                 android:id="@+id/zip"
@@ -37,8 +37,8 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_gravity="center"
-                android:textSize="40sp"
-                android:text="@string/url" />
+                android:text="@string/url"
+                android:textSize="40sp" />
 
             <EditText
                 android:id="@+id/url"
@@ -58,8 +58,8 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_gravity="center"
-                android:textSize="40sp"
-                android:text="@string/uid" />
+                android:text="@string/uid"
+                android:textSize="40sp" />
 
             <EditText
                 android:id="@+id/uid"
@@ -79,8 +79,8 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_gravity="center"
-                android:textSize="40sp"
-                android:text="@string/token" />
+                android:text="@string/token"
+                android:textSize="40sp" />
 
             <EditText
                 android:id="@+id/token"
@@ -100,8 +100,8 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_gravity="center"
-                android:textSize="40sp"
-                android:text="@string/channel" />
+                android:text="@string/channel"
+                android:textSize="40sp" />
 
             <EditText
                 android:id="@+id/channel"
@@ -112,6 +112,7 @@
                 android:inputType="text" />
 
         </LinearLayout>
+
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content">
@@ -120,8 +121,8 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_gravity="center"
-                android:textSize="40sp"
-                android:text="@string/appId" />
+                android:text="@string/appId"
+                android:textSize="40sp" />
 
             <EditText
                 android:id="@+id/appId"
@@ -141,8 +142,8 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_gravity="center"
-                android:textSize="40sp"
-                android:text="@string/gameid" />
+                android:text="@string/gameid"
+                android:textSize="40sp" />
 
             <EditText
                 android:id="@+id/gameid"
@@ -162,8 +163,8 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_gravity="center"
-                android:textSize="40sp"
-                android:text="@string/aspectRatio" />
+                android:text="@string/aspectRatio"
+                android:textSize="40sp" />
 
             <EditText
                 android:id="@+id/ratio"
@@ -179,16 +180,76 @@
             android:id="@+id/btn"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="@string/start"
-            />
+            android:text="@string/start" />
 
     </LinearLayout>
-
 
     <WebView
         android:id="@+id/web"
         android:layout_width="match_parent"
         android:layout_height="300dp"
-        android:visibility="invisible"
-        android:layout_gravity="bottom"/>
+        android:layout_gravity="bottom"
+        android:visibility="invisible" />
+
+    <LinearLayout
+        android:id="@+id/ll_topup"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom"
+        android:orientation="vertical"
+        android:visibility="gone"
+        >
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_margin="10dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:text="@string/gold"
+                android:textSize="20sp" />
+
+            <EditText
+                android:id="@+id/gold"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:layout_gravity="bottom"
+                android:autofillHints=""
+                android:inputType="text" />
+
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content">
+
+            <Button
+                android:id="@+id/btn_add"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginLeft="10dp"
+                android:layout_marginRight="10dp"
+                android:layout_weight="1"
+                android:text="@string/add" />
+
+            <Button
+                android:id="@+id/btn_minus"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginLeft="10dp"
+                android:layout_marginRight="10dp"
+                android:layout_weight="1"
+                android:text="@string/minus" />
+
+        </LinearLayout>
+
+        <Button
+            android:id="@+id/btn_topup_close"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/close" />
+    </LinearLayout>
 </FrameLayout>

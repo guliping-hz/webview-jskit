@@ -11,4 +11,8 @@
     <string name="start">启动/物理返回键关闭webview</string>
     <string name="opening">已打开/按物理返回关闭</string>
     <string name="urlempty">url为空</string>
+    <string name="gold">金币(仅限test2使用)</string>
+    <string name="add">充值+金币</string>
+    <string name="minus">送礼-金币</string>
+    <string name="close">关闭</string>
 </resources>

@@ -2,6 +2,7 @@ package com.example.myapplication;
 
 import android.app.Activity;
 import android.util.Log;
+import android.view.View;
 import android.webkit.WebView;
 import android.widget.Toast;
 
@@ -20,9 +21,9 @@ public class JSKit {
 //            'X-Authorization': '0175f1f8b0e5e70fb5e3fc6daec250ad',
 //                    'X-Uid': '60000159',
 
-    private final Activity mContext;
+    private final MainActivity mContext;
 
-    public JSKit(Activity context) {
+    public JSKit(MainActivity context) {
         this.mContext = context;
     }
 
@@ -71,8 +72,17 @@ public class JSKit {
         return this.getGameNeedInfo();
     }
 
+    @android.webkit.JavascriptInterface
+    public void recharge() {
+        mContext.runOnUiThread(() -> {
+            mContext.topup.setVisibility(View.VISIBLE);
+        });
+    }
+
     public static void Eval(WebView webView, String evalStr) {
-        webView.evaluateJavascript(evalStr, null);
+        webView.post(() -> {
+            webView.evaluateJavascript(evalStr, null);
+        });
     }
 
     public static void WalletUpdateNoCoin(WebView webView) {
