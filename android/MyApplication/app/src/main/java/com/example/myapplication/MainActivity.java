@@ -417,12 +417,19 @@ public class MainActivity extends AppCompatActivity {
                 if (response.isSuccessful() && response.body() != null) {
                     String jsonResponse = response.body().string();
 
-                    // 解析 JSON
-                    Gson gson = new Gson();
-                    BaseResponse result = gson.fromJson(jsonResponse, BaseResponse.class);
+                    try {
+                        // 解析 JSON
+                        Gson gson = new Gson();
+                        BaseResponse result = gson.fromJson(jsonResponse, BaseResponse.class);
 
-                    // 在主线程处理结果
-                    runOnUiThread(() -> handleResponse(result, gold));
+                        // 在主线程处理结果
+                        runOnUiThread(() -> handleResponse(result, gold));
+                    } catch (Exception e) {
+                        runOnUiThread(() -> {
+                            // 网络请求失败
+                            Toast.makeText(this, "数据异常:" + jsonResponse, Toast.LENGTH_SHORT).show();
+                        });
+                    }
                 } else {
                     runOnUiThread(() -> {
                         // 网络请求失败
