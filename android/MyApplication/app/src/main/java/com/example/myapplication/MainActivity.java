@@ -24,7 +24,6 @@ import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.Toast;
 
-import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 
 import com.google.gson.Gson;
@@ -33,8 +32,6 @@ import net.lingala.zip4j.ZipFile;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 import okhttp3.FormBody;
 import okhttp3.OkHttpClient;
@@ -68,8 +65,12 @@ public class MainActivity extends AppCompatActivity {
     private Handler progressHandler;
     private Runnable progressRunnable;
 
-    // 当前期望的本地 zip 文件名（不含路径）
+    // 当前期望的本地 zip 文件名（不含路径），例如 olympus-1.0.zip
     private String expectedZipFileName;
+    // 当前下载完成后应解压到的目标目录，例如 .../game_assets/olympus
+    private File pendingGameAssetsDir;
+    // 当前下载对应的游戏名，用于广播里再次清理旧版本
+    private String pendingGameName;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -100,6 +101,8 @@ public class MainActivity extends AppCompatActivity {
         ratioE.setText(sp.getString(ERatio, ""));
 
         // 注册下载完成广播
+        // 注意：DownloadManager 的广播是系统发出的，必须用 RECEIVER_EXPORTED，
+        // 否则 Android 14/15 上收不到。
         downloadReceiver = new BroadcastReceiver() {
             @Override
             public void onReceive(Context context, Intent intent) {
@@ -112,7 +115,14 @@ public class MainActivity extends AppCompatActivity {
                         boolean renamed = tempFile.renameTo(targetFile);
                         if (renamed) {
                             Toast.makeText(MainActivity.this, "下载完成，开始解压", Toast.LENGTH_SHORT).show();
-                            new Thread(() -> unzipFile(targetFile.getAbsolutePath())).start();
+                            // 下载期间可能又出现别的版本，重命名成功后再清理一次旧版本
+                            if (pendingGameName != null) {
+                                cleanOldVersions(pendingGameName, expectedZipFileName);
+                            }
+                            final File assetsDir = pendingGameAssetsDir != null
+                                    ? pendingGameAssetsDir
+                                    : new File(getExternalFilesDir(null), "game_assets");
+                            new Thread(() -> unzipFile(targetFile.getAbsolutePath(), assetsDir)).start();
                         } else {
                             runOnUiThread(() -> Toast.makeText(MainActivity.this, "文件重命名失败", Toast.LENGTH_SHORT).show());
                         }
@@ -123,9 +133,13 @@ public class MainActivity extends AppCompatActivity {
             }
         };
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-            registerReceiver(downloadReceiver, new IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE), Context.RECEIVER_EXPORTED);
+            // Android 14+ 必须显式指定；系统广播需 EXPORTED
+            registerReceiver(downloadReceiver,
+                    new IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE),
+                    Context.RECEIVER_EXPORTED);
         } else {
-            registerReceiver(downloadReceiver, new IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE));
+            registerReceiver(downloadReceiver,
+                    new IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE));
         }
 
         findViewById(R.id.btn).setOnClickListener(v -> {
@@ -175,22 +189,35 @@ public class MainActivity extends AppCompatActivity {
 
             // 核心逻辑：通过本地文件名比对版本，决定是否需要下载
             if (!TextUtils.isEmpty(zip)) {
-                // 从 zip URL 中提取期望的本地文件名（去除查询参数，只取路径最后一段）
+                // 从 zip URL 中提取期望的本地文件名
                 expectedZipFileName = extractFileNameFromUrl(zip);
                 if (TextUtils.isEmpty(expectedZipFileName)) {
                     Toast.makeText(this, "无法解析压缩包文件名", Toast.LENGTH_SHORT).show();
                     return;
                 }
 
+                // 从文件名解析游戏名和版本：olympus-1.0.zip -> ["olympus", "1.0"]
+                String[] parsed = parseGameNameAndVersion(expectedZipFileName);
+                if (parsed == null || TextUtils.isEmpty(parsed[0])) {
+                    Toast.makeText(this, "无法解析游戏名", Toast.LENGTH_SHORT).show();
+                    return;
+                }
+                String gameName = parsed[0];
+                String version = parsed[1];
+                Log.i(Tag, "gameName=" + gameName + ", version=" + version);
+
+                // 每个游戏独立目录：game_assets/<游戏名>/
                 File localZipFile = new File(getExternalFilesDir(null), expectedZipFileName);
-                File gameAssetsDir = new File(getExternalFilesDir(null), "game_assets");
+                File gameAssetsDir = new File(getExternalFilesDir(null), "game_assets/" + gameName);
                 File indexFile = new File(gameAssetsDir, "web-mobile/index.html");
 
+                // 无论走哪条分支，先清理该游戏的其他版本 zip / temp，只保留当前版本
+                cleanOldVersions(gameName, expectedZipFileName);
+
                 if (localZipFile.exists() && localZipFile.length() > 0) {
-                    // 本地已有同名 zip 文件，直接解压（如果解压目录不完整则解压，否则可跳过解压直接加载）
                     if (indexFile.exists()) {
                         // 已有完整解压内容，直接加载
-                        Toast.makeText(this, "使用已下载的资源包: " + expectedZipFileName, Toast.LENGTH_SHORT).show();
+                        Toast.makeText(this, "使用已下载的资源包: " + gameName + " " + version, Toast.LENGTH_SHORT).show();
                         loadLocalHtml(gameAssetsDir);
                         webView.setVisibility(View.VISIBLE);
                     } else {
@@ -198,13 +225,15 @@ public class MainActivity extends AppCompatActivity {
                         Toast.makeText(this, "解压目录缺失，重新解压", Toast.LENGTH_SHORT).show();
                         webView.loadDataWithBaseURL(null, "<html><body>正在解压资源包...</body></html>", "text/html", "UTF-8", null);
                         webView.setVisibility(View.VISIBLE);
-                        new Thread(() -> unzipFile(localZipFile.getAbsolutePath())).start();
+                        new Thread(() -> unzipFile(localZipFile.getAbsolutePath(), gameAssetsDir)).start();
                     }
                 } else {
                     // 本地没有同名 zip 文件，需要下载
                     webView.loadDataWithBaseURL(null, "<html><body>正在下载资源包...</body></html>", "text/html", "UTF-8", null);
                     webView.setVisibility(View.VISIBLE);
                     downloadManager = (DownloadManager) getSystemService(DOWNLOAD_SERVICE);
+                    pendingGameAssetsDir = gameAssetsDir;
+                    pendingGameName = gameName;
                     startDownloadWithTemp(zip);
                     startProgressTracking();
                 }
@@ -214,6 +243,7 @@ public class MainActivity extends AppCompatActivity {
                 webView.setVisibility(View.VISIBLE);
             }
         });
+
         findViewById(R.id.btn_topup_close).setOnClickListener(view -> {
             topup.setVisibility(View.GONE);
         });
@@ -236,7 +266,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     /**
-     * 从 URL 中提取文件名（例如 http://example.com/olympus-1.zip?token=xxx -> olympus-1.zip）
+     * 从 URL 中提取文件名（例如 http://example.com/olympus-1.0.zip?token=xxx -> olympus-1.0.zip）
      */
     private String extractFileNameFromUrl(String url) {
         if (TextUtils.isEmpty(url)) return null;
@@ -245,7 +275,6 @@ public class MainActivity extends AppCompatActivity {
             String path = uri.getPath();
             if (path == null) return null;
             String fileName = path.substring(path.lastIndexOf('/') + 1);
-            // 去除可能的查询参数（路径中不应包含 ?，但安全起见）
             int queryIndex = fileName.indexOf('?');
             if (queryIndex != -1) {
                 fileName = fileName.substring(0, queryIndex);
@@ -258,22 +287,86 @@ public class MainActivity extends AppCompatActivity {
     }
 
     /**
+     * 解析 zip 文件名，提取游戏名和版本号。
+     * 规则：以最后一个 '-' 分隔。
+     *   olympus-1.0.zip    -> ["olympus", "1.0"]
+     *   my-game-2.3.4.zip  -> ["my-game", "2.3.4"]
+     *   nohyphen.zip       -> ["nohyphen", ""]
+     */
+    private String[] parseGameNameAndVersion(String zipFileName) {
+        if (TextUtils.isEmpty(zipFileName)) return null;
+        String base = zipFileName;
+        if (base.toLowerCase().endsWith(".zip")) {
+            base = base.substring(0, base.length() - 4);
+        }
+        int idx = base.lastIndexOf('-');
+        String gameName;
+        String version = "";
+        if (idx > 0) {
+            gameName = base.substring(0, idx);
+            version = base.substring(idx + 1);
+        } else {
+            gameName = base;
+        }
+        // 安全过滤，防止路径穿越
+        gameName = gameName.replaceAll("[^a-zA-Z0-9_\\-]", "_");
+        return new String[]{gameName, version};
+    }
+
+    /**
+     * 清理同一游戏的旧版本 zip 包与 .temp 残留，只保留 keepZipFileName 对应的文件。
+     * 解压目录由 unzipFile 内部先删再建，因此这里无需处理目录。
+     *
+     * @param gameName        游戏名
+     * @param keepZipFileName 需要保留的 zip 文件名（不含路径）
+     */
+    private void cleanOldVersions(String gameName, String keepZipFileName) {
+        File filesDir = getExternalFilesDir(null);
+        if (filesDir == null || !filesDir.exists()) return;
+        File[] files = filesDir.listFiles();
+        if (files == null) return;
+
+        for (File f : files) {
+            String name = f.getName();
+            if (f.isDirectory()) continue;
+
+            // 保留当前版本
+            if (name.equals(keepZipFileName)) continue;
+            if (name.equals(keepZipFileName + ".temp")) continue;
+
+            if (name.toLowerCase().endsWith(".zip")) {
+                String[] parsed = parseGameNameAndVersion(name);
+                if (parsed != null && gameName.equals(parsed[0])) {
+                    if (f.delete()) Log.i(Tag, "已删除旧版本 zip: " + name);
+                }
+            } else if (name.endsWith(".temp")) {
+                String base = name.substring(0, name.length() - 5);
+                String[] parsed = parseGameNameAndVersion(base);
+                if (parsed != null && gameName.equals(parsed[0])) {
+                    if (f.delete()) Log.i(Tag, "已删除旧版本 temp: " + name);
+                }
+            }
+        }
+    }
+
+    /**
      * 使用临时文件名下载，下载完成后在广播接收器中重命名
      */
     private void startDownloadWithTemp(String url) {
         DownloadManager.Request request = new DownloadManager.Request(Uri.parse(url));
         request.setTitle("正在下载游戏资源包");
         request.setDescription("下载完成后将自动解压");
-        // 下载到临时文件
         request.setDestinationInExternalFilesDir(this, null, expectedZipFileName + ".temp");
         request.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
         downloadId = downloadManager.enqueue(request);
     }
 
-    private void unzipFile(String zipFilePath) {
+    /**
+     * 解压到指定目录。若目录已存在，先清空再解压（保证只保留当前版本内容）。
+     */
+    private void unzipFile(String zipFilePath, File outputDir) {
         try {
             ZipFile zipFile = new ZipFile(zipFilePath);
-            File outputDir = new File(getExternalFilesDir(null), "game_assets");
             if (outputDir.exists()) {
                 deleteDirectory(outputDir);
             }
@@ -305,7 +398,7 @@ public class MainActivity extends AppCompatActivity {
         webView.loadUrl(finalUrl);
     }
 
-    // 下载进度追踪（与之前相同）
+    // 下载进度追踪
     private void startProgressTracking() {
         if (progressHandler == null) {
             progressHandler = new Handler();
@@ -410,35 +503,30 @@ public class MainActivity extends AppCompatActivity {
     public void sendPrespinRequest(long gold) {
         OkHttpClient client = new OkHttpClient();
 
-        // 构建 application/x-www-form-urlencoded 表单数据
-        FormBody formBody = new FormBody.Builder().add("uid", String.valueOf(JSKit.Uid)).add("token", "")      // 空值
-                .add("gold", String.valueOf(gold)).build();
+        FormBody formBody = new FormBody.Builder()
+                .add("uid", String.valueOf(JSKit.Uid))
+                .add("token", "")
+                .add("gold", String.valueOf(gold))
+                .build();
 
-        Request request = new Request.Builder().url("https://test2.fanyula.com/buddysrv/gold").post(formBody).build();
+        Request request = new Request.Builder()
+                .url("https://test2.fanyula.com/buddysrv/gold")
+                .post(formBody)
+                .build();
 
         new Thread(() -> {
             try (Response response = client.newCall(request).execute()) {
                 if (response.isSuccessful() && response.body() != null) {
                     String jsonResponse = response.body().string();
-
                     try {
-                        // 解析 JSON
                         Gson gson = new Gson();
                         BaseResponse result = gson.fromJson(jsonResponse, BaseResponse.class);
-
-                        // 在主线程处理结果
                         runOnUiThread(() -> handleResponse(result, gold));
                     } catch (Exception e) {
-                        runOnUiThread(() -> {
-                            // 网络请求失败
-                            Toast.makeText(this, "数据异常:" + jsonResponse, Toast.LENGTH_SHORT).show();
-                        });
+                        runOnUiThread(() -> Toast.makeText(this, "数据异常:" + jsonResponse, Toast.LENGTH_SHORT).show());
                     }
                 } else {
-                    runOnUiThread(() -> {
-                        // 网络请求失败
-                        Toast.makeText(this, "网络请求失败", Toast.LENGTH_SHORT).show();
-                    });
+                    runOnUiThread(() -> Toast.makeText(this, "网络请求失败", Toast.LENGTH_SHORT).show());
                 }
             } catch (IOException e) {
                 e.printStackTrace();
@@ -446,16 +534,12 @@ public class MainActivity extends AppCompatActivity {
         }).start();
     }
 
-    // 处理业务响应
     private void handleResponse(BaseResponse response, long gold) {
         if (response.getCode() == 0) {
-            // code=0 表示成功
             Toast.makeText(this, "✅ " + response.getMsg(), Toast.LENGTH_SHORT).show();
-            // 更新 UI
-            //充值回调，送礼不回调
+            // 充值回调，送礼不回调
             if (gold > 0) JSKit.WalletUpdateNoCoin(this.webView);
         } else {
-            // 业务失败
             Toast.makeText(this, "❌ " + response.getMsg(), Toast.LENGTH_SHORT).show();
         }
     }
